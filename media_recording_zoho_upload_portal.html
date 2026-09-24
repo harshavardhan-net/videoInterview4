@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video & Audio Message Recorder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Audio pulse animation */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 0.4; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .recording-pulse {
+            animation: pulse-ring 2s infinite ease-in-out;
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Navigation / Header -->
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20">
+                    <i class="fa-solid me-0.5 fa-video"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">ResponseRecorder</h1>
+                    <p class="text-xs text-slate-400">Zoho WorkDrive Sync Portal</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-portal-view" onclick="switchView('portal')" class="px-4 py-2 rounded-lg text-sm font-medium transition bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
+                    <i class="fa-solid fa-microphone me-1.5"></i> Participant App
+                </button>
+                <button id="btn-admin-view" onclick="switchView('admin')" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-gear me-1.5"></i> Admin Setup Guide
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Participant Portal Container -->
+    <main id="portal-view" class="flex-1 flex flex-col max-w-4xl w-full mx-auto p-4 sm:p-6">
+        
+        <!-- Config Alert (shown if Worker URL is default) -->
+        <div id="config-banner" class="hidden mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 text-amber-200 text-sm">
+            <i class="fa-solid fa-circle-exclamation text-amber-400 text-lg mt-0.5"></i>
+            <div>
+                <strong class="font-semibold">Worker URL Not Configured:</strong> Please set your Cloudflare Worker Endpoint in the top setup bar or in the script to enable direct uploads to Zoho WorkDrive.
+            </div>
+        </div>
+
+        <!-- Stepper Indicator -->
+        <div class="mb-8">
+            <div class="flex items-center justify-between relative">
+                <!-- Line Behind Steps -->
+                <div class="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-800 -z-0"></div>
+                <div id="step-line-progress" class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-indigo-500 transition-all duration-300 -z-0" style="width: 0%;"></div>
+
+                <!-- Step 1 Circle -->
+                <div class="step-item relative z-10 flex flex-col items-center">
+                    <div id="step-circle-1" class="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center ring-4 ring-slate-900 shadow-lg">1</div>
+                    <span class="text-xs font-medium mt-2 text-indigo-400">Instructions</span>
+                </div>
+                <!-- Step 2 Circle -->
+                <div class="step-item relative z-10 flex flex-col items-center">
+                    <div id="step-circle-2" class="w-10 h-10 rounded-full bg-slate-800 text-slate-400 font-bold flex items-center justify-center ring-4 ring-slate-900">2</div>
+                    <span class="text-xs font-medium mt-2 text-slate-500">Media Test</span>
+                </div>
+                <!-- Step 3 Circle -->
+                <div class="step-item relative z-10 flex flex-col items-center">
+                    <div id="step-circle-3" class="w-10 h-10 rounded-full bg-slate-800 text-slate-400 font-bold flex items-center justify-center ring-4 ring-slate-900">3</div>
+                    <span class="text-xs font-medium mt-2 text-slate-500">Record</span>
+                </div>
+                <!-- Step 4 Circle -->
+                <div class="step-item relative z-10 flex flex-col items-center">
+                    <div id="step-circle-4" class="w-10 h-10 rounded-full bg-slate-800 text-slate-400 font-bold flex items-center justify-center ring-4 ring-slate-900">4</div>
+                    <span class="text-xs font-medium mt-2 text-slate-500">Submit</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 1: Welcome & Instructions -->
+        <div id="step-1" class="step-content bg-slate-800/50 border border-slate-700/60 rounded-2xl p-6 sm:p-8 flex-1 flex flex-col justify-between backdrop-blur">
+            <div>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-semibold mb-4 border border-indigo-500/20">
+                    <i class="fa-solid fa-circle-info"></i> Participant Guidance
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-bold mb-4 text-white">Record Your Video Response</h2>
+                <p class="text-slate-300 text-sm sm:text-base leading-relaxed mb-6">
+                    Welcome! You are requested to record a short audio/video message. Your recording will be transmitted securely and saved directly into our reviewer's Zoho WorkDrive.
+                </p>
+
+                <div class="grid sm:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/40">
+                        <i class="fa-solid fa-camera text-indigo-400 text-xl mb-2"></i>
+                        <h3 class="font-semibold text-sm mb-1">Check Camera</h3>
+                        <p class="text-xs text-slate-400">Ensure good lighting and position yourself centered in frame.</p>
+                    </div>
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/40">
+                        <i class="fa-solid fa-microphone text-indigo-400 text-xl mb-2"></i>
+                        <h3 class="font-semibold text-sm mb-1">Clear Audio</h3>
+                        <p class="text-xs text-slate-400">Find a quiet room. Use an external mic or headset if available.</p>
+                    </div>
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/40">
+                        <i class="fa-solid fa-shield-halved text-indigo-400 text-xl mb-2"></i>
+                        <h3 class="font-semibold text-sm mb-1">Secure Upload</h3>
+                        <p class="text-xs text-slate-400">Direct serverless transfer. No public sharing or storage leaks.</p>
+                    </div>
+                </div>
+
+                <!-- Participant Info Fields -->
+                <div class="space-y-4 max-w-lg mb-6">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Your Name *</label>
+                        <input type="text" id="participant-name" placeholder="Jane Doe" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Email Address (Optional)</label>
+                        <input type="email" id="participant-email" placeholder="jane@example.com" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-4 border-t border-slate-700/50">
+                <button onclick="goToStep(2)" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center gap-2">
+                    Next: Media Setup <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- STEP 2: Device Selection & Visualizer Test -->
+        <div id="step-2" class="step-content hidden bg-slate-800/50 border border-slate-700/60 rounded-2xl p-6 sm:p-8 flex-1 flex flex-col justify-between backdrop-blur">
+            <div>
+                <h2 class="text-2xl font-bold mb-2">Camera & Microphone Setup</h2>
+                <p class="text-slate-400 text-sm mb-6">Select your devices and verify audio modulation before starting.</p>
+
+                <!-- Mode Selection -->
+                <div class="flex gap-4 mb-6">
+                    <button id="mode-video-btn" onclick="setRecordingMode('video')" class="flex-1 py-3 px-4 rounded-xl border border-indigo-500 bg-indigo-500/10 text-indigo-300 font-medium text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-video"></i> Video + Audio
+                    </button>
+                    <button id="mode-audio-btn" onclick="setRecordingMode('audio')" class="flex-1 py-3 px-4 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-400 font-medium text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-microphone"></i> Audio Only
+                    </button>
+                </div>
+
+                <!-- Device Selectors -->
+                <div class="grid sm:grid-cols-2 gap-4 mb-6">
+                    <div id="cam-select-wrapper">
+                        <label class="block text-xs font-semibold text-slate-400 mb-2">Camera</label>
+                        <select id="select-video" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 mb-2">Microphone</label>
+                        <select id="select-audio" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"></select>
+                    </div>
+                </div>
+
+                <!-- Live Setup Preview Box -->
+                <div class="relative bg-slate-950 rounded-xl overflow-hidden aspect-video border border-slate-800 flex items-center justify-center max-h-80 mx-auto">
+                    <video id="preview-setup-video" autoplay muted playsinline class="w-full h-full object-cover"></video>
+                    
+                    <!-- Audio-only representation mode -->
+                    <div id="audio-only-placeholder" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-slate-950">
+                        <div class="w-20 h-20 rounded-full bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 text-3xl mb-3">
+                            <i class="fa-solid fa-microphone"></i>
+                        </div>
+                        <p class="text-xs text-slate-400">Audio Only Mode Selected</p>
+                    </div>
+
+                    <!-- Audio Visualizer Canvas Overlay -->
+                    <div class="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-slate-950/90 to-transparent p-2 flex items-end justify-center">
+                        <canvas id="visualizer-setup" class="w-full h-12"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-between pt-6 border-t border-slate-700/50 mt-6">
+                <button onclick="goToStep(1)" class="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium rounded-xl transition">
+                    Back
+                </button>
+                <button onclick="startRecorderStep()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center gap-2">
+                    Ready to Record <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- STEP 3: Studio Recording & Playback -->
+        <div id="step-3" class="step-content hidden bg-slate-800/50 border border-slate-700/60 rounded-2xl p-6 sm:p-8 flex-1 flex flex-col justify-between backdrop-blur">
+            <div>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl sm:text-2xl font-bold" id="recording-title">Record Message</h2>
+                    <!-- Timer Badge -->
+                    <div id="timer-badge" class="px-3 py-1 bg-slate-900 border border-slate-700 rounded-full text-xs font-mono font-bold text-red-400 flex items-center gap-2">
+                        <span id="recording-dot" class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
+                        <span id="timer-display">00:00</span>
+                    </div>
+                </div>
+
+                <!-- Active Recording Canvas View -->
+                <div class="relative bg-slate-950 rounded-2xl overflow-hidden aspect-video border border-slate-800 flex items-center justify-center max-h-[380px] mx-auto shadow-2xl">
+                    <video id="live-recording-video" autoplay muted playsinline class="w-full h-full object-cover"></video>
+                    <video id="playback-video" controls class="hidden w-full h-full object-cover"></video>
+
+                    <!-- Audio Only Screen for Active Recording -->
+                    <div id="recording-audio-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-slate-950">
+                        <div id="audio-pulse-ring" class="w-24 h-24 rounded-full bg-indigo-600/30 border border-indigo-400 flex items-center justify-center text-indigo-300 text-4xl">
+                            <i class="fa-solid fa-microphone"></i>
+                        </div>
+                        <canvas id="visualizer-recording" class="w-64 h-16 mt-4"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recorder Controls Toolbar -->
+                <div class="flex justify-center items-center gap-4 mt-6">
+                    <button id="btn-start-rec" onclick="startRecording()" class="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-xl transition shadow-lg shadow-red-600/30 flex items-center gap-2">
+                        <i class="fa-solid fa-circle"></i> Start Recording
+                    </button>
+
+                    <button id="btn-stop-rec" onclick="stopRecording()" class="hidden px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl transition flex items-center gap-2">
+                        <i class="fa-solid fa-square"></i> Stop Recording
+                    </button>
+
+                    <button id="btn-rerecord" onclick="resetRecording()" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-sm font-medium rounded-xl transition flex items-center gap-2">
+                        <i class="fa-solid fa-rotate-left"></i> Re-record
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-between pt-6 border-t border-slate-700/50 mt-6">
+                <button onclick="goToStep(2)" class="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium rounded-xl transition">
+                    Back
+                </button>
+                <button id="btn-submit-next" onclick="prepareUploadStep()" disabled class="opacity-50 cursor-not-allowed px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl transition flex items-center gap-2">
+                    Review & Upload <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- STEP 4: Upload & Status -->
+        <div id="step-4" class="step-content hidden bg-slate-800/50 border border-slate-700/60 rounded-2xl p-6 sm:p-8 flex-1 flex flex-col justify-between backdrop-blur">
+            <div id="upload-state-initial" class="text-center py-8">
+                <div class="w-16 h-16 rounded-2xl bg-indigo-600/20 text-indigo-400 mx-auto flex items-center justify-center text-2xl mb-4 border border-indigo-500/30">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </div>
+                <h2 class="text-2xl font-bold mb-2">Ready to Upload Message</h2>
+                <p class="text-slate-400 text-sm max-w-md mx-auto mb-6">Your clip is processed and ready. Press upload to transmit directly to the Zoho WorkDrive destination folder.</p>
+
+                <div id="upload-progress-container" class="hidden max-w-md mx-auto mb-6">
+                    <div class="w-full bg-slate-900 rounded-full h-3 border border-slate-700 overflow-hidden mb-2">
+                        <div id="upload-progress-bar" class="bg-indigo-500 h-full w-0 transition-all duration-200"></div>
+                    </div>
+                    <p id="upload-status-text" class="text-xs text-slate-400 font-mono">Uploading... 0%</p>
+                </div>
+
+                <button id="btn-trigger-upload" onclick="uploadToZoho()" class="px-8 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow-lg shadow-emerald-600/30 transition inline-flex items-center gap-2">
+                    <i class="fa-solid fa-paper-plane"></i> Submit Recording
+                </button>
+            </div>
+
+            <!-- Success State -->
+            <div id="upload-state-success" class="hidden text-center py-12">
+                <div class="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center text-4xl mb-4 border border-emerald-500/40">
+                    <i class="fa-solid fa-check"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-white mb-2">Upload Complete!</h2>
+                <p class="text-slate-300 text-sm max-w-md mx-auto mb-6">Thank you. Your message has been saved into Zoho WorkDrive. The reviewer will process it shortly.</p>
+                <button onclick="window.location.reload()" class="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium rounded-xl transition">
+                    Record Another Message
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Administrator Setup Guide Section -->
+    <main id="admin-view" class="hidden flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6">
+        <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 sm:p-8 backdrop-blur">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 border-b border-slate-700/60 pb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-white">Administrator Deployment Guide</h2>
+                    <p class="text-slate-400 text-sm">Follow these steps to connect GitHub Pages with Cloudflare Workers and Zoho WorkDrive.</p>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 p-2 rounded-xl">
+                    <span class="text-xs text-slate-400 pl-2">Worker API URL:</span>
+                    <input type="text" id="admin-worker-url-input" placeholder="https://zoho-proxy.user.workers.dev" class="bg-slate-800 border border-slate-600 rounded-lg text-xs text-white px-3 py-1.5 focus:outline-none focus:border-indigo-500 w-64">
+                    <button onclick="saveWorkerConfig()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold">Save</button>
+                </div>
+            </div>
+
+            <!-- Guide Tabs -->
+            <div class="flex border-b border-slate-700 mb-6 gap-2 overflow-x-auto">
+                <button onclick="switchAdminTab('tab-zoho')" id="tab-btn-zoho" class="px-4 py-2 border-b-2 border-indigo-500 font-semibold text-sm text-indigo-400 whitespace-nowrap">1. Zoho Setup</button>
+                <button onclick="switchAdminTab('tab-cf')" id="tab-btn-cf" class="px-4 py-2 border-b-2 border-transparent font-medium text-sm text-slate-400 hover:text-slate-200 whitespace-nowrap">2. Cloudflare Worker</button>
+                <button onclick="switchAdminTab('tab-gh')" id="tab-btn-gh" class="px-4 py-2 border-b-2 border-transparent font-medium text-sm text-slate-400 hover:text-slate-200 whitespace-nowrap">3. GitHub Pages Hosting</button>
+            </div>
+
+            <!-- Tab 1: Zoho API Setup -->
+            <div id="tab-zoho" class="admin-tab-content space-y-4">
+                <h3 class="text-lg font-semibold text-indigo-300">Setting up Zoho Developer Console & WorkDrive</h3>
+                <ol class="list-decimal list-inside space-y-3 text-slate-300 text-sm leading-relaxed">
+                    <li>Go to <a href="https://api-console.zoho.com/" target="_blank" class="text-indigo-400 underline">Zoho API Console</a> and click <strong>Add Client</strong>.</li>
+                    <li>Choose <strong>Server-based Applications</strong> as the Client Type.</li>
+                    <li>Enter details:
+                        <ul class="list-disc list-inside pl-5 mt-1 text-slate-400 space-y-1">
+                            <li><strong>Client Name:</strong> ResponseRecorder Proxy</li>
+                            <li><strong>Homepage URL:</strong> Your GitHub Pages URL (e.g. <code class="bg-slate-900 px-1 py-0.5 rounded text-indigo-300">https://username.github.io/repo</code>)</li>
+                            <li><strong>Authorized Redirect URIs:</strong> <code class="bg-slate-900 px-1 py-0.5 rounded text-indigo-300">https://oauth.pstmn.io/v1/callback</code> or <code class="bg-slate-900 px-1 py-0.5 rounded text-indigo-300">https://example.com/callback</code></li>
+                        </ul>
+                    </li>
+                    <li>Copy your generated <code class="bg-slate-900 px-1.5 py-0.5 rounded text-indigo-300">Client ID</code> and <code class="bg-slate-900 px-1.5 py-0.5 rounded text-indigo-300">Client Secret</code>.</li>
+                    <li>Generate a <strong>Grant Token / Refresh Token</strong> with scope <code class="bg-slate-900 px-1 py-0.5 rounded text-amber-300">WorkDrive.workspace.ALL,WorkDrive.files.ALL</code>.</li>
+                    <li>Get your target WorkDrive **Folder ID** from the WorkDrive URL when navigating to your target folder: <code class="bg-slate-900 px-1 py-0.5 rounded text-slate-300">workdrive.zoho.com/home/folders/<strong>[FOLDER_ID]</strong></code>.</li>
+                </ol>
+            </div>
+
+            <!-- Tab 2: Cloudflare Worker Setup -->
+            <div id="tab-cf" class="admin-tab-content hidden space-y-4">
+                <h3 class="text-lg font-semibold text-indigo-300">Deploying the Cloudflare Worker Proxy</h3>
+                <p class="text-slate-300 text-sm">Create a new Cloudflare Worker to act as a CORS proxy and handle Zoho OAuth authentication securely without exposing secrets.</p>
+                
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 relative">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-mono text-slate-400">worker.js</span>
+                        <button onclick="copyCode('worker-code-snippet')" class="text-xs bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded text-slate-300"><i class="fa-solid fa-copy me-1"></i> Copy Worker Code</button>
+                    </div>
+                    <pre id="worker-code-snippet" class="text-xs font-mono text-slate-300 overflow-x-auto max-h-64 p-2">
+export default {
+  async fetch(request, env) {
+    // Handle CORS preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      });
+    }
+
+    if (request.method !== "POST") {
+      return new Response("Method not allowed", { status: 405 });
+    }
+
+    try {
+      // 1. Obtain Fresh Access Token using Refresh Token
+      const tokenParams = new URLSearchParams({
+        refresh_token: env.ZOHO_REFRESH_TOKEN,
+        client_id: env.ZOHO_CLIENT_ID,
+        client_secret: env.ZOHO_CLIENT_SECRET,
+        grant_type: "refresh_token"
+      });
+
+      const tokenRes = await fetch(`https://accounts.zoho.com/oauth/v2/token?${tokenParams}`, { method: "POST" });
+      const tokenData = await tokenRes.json();
+
+      if (!tokenData.access_token) {
+        return new Response(JSON.stringify({ error: "OAuth Token Refresh Failed", details: tokenData }), {
+          status: 400,
+          headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" }
+        });
+      }
+
+      // 2. Relay MultiPart Upload to Zoho WorkDrive
+      const formData = await request.formData();
+      const file = formData.get("file");
+      const filename = formData.get("filename") || "recording.webm";
+
+      const uploadBody = new FormData();
+      uploadBody.append("content", file, filename);
+      uploadBody.append("parent_id", env.ZOHO_FOLDER_ID);
+
+      const uploadRes = await fetch("https://upload.zoho.com/workdrive-api/v1/stream/upload", {
+        method: "POST",
+        headers: {
+          "Authorization": `Zoho-oauthtoken ${tokenData.access_token}`
+        },
+        body: uploadBody
+      });
+
+      const uploadResult = await uploadRes.json();
+
+      return new Response(JSON.stringify(uploadResult), {
+        status: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
+        }
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 500,
+        headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" }
+      });
+    }
+  }
+};</pre>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-700/50 p-4 rounded-xl text-xs space-y-2 text-slate-300">
+                    <p class="font-semibold text-slate-200">Set Environment Secrets in Cloudflare Worker Settings:</p>
+                    <ul class="list-disc list-inside space-y-1 font-mono text-indigo-300">
+                        <li>ZOHO_CLIENT_ID</li>
+                        <li>ZOHO_CLIENT_SECRET</li>
+                        <li>ZOHO_REFRESH_TOKEN</li>
+                        <li>ZOHO_FOLDER_ID</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Tab 3: GitHub Pages -->
+            <div id="tab-gh" class="admin-tab-content hidden space-y-4">
+                <h3 class="text-lg font-semibold text-indigo-300">GitHub Pages Deployment Steps</h3>
+                <ol class="list-decimal list-inside space-y-3 text-slate-300 text-sm leading-relaxed">
+                    <li>Create a public or private GitHub repository.</li>
+                    <li>Commit this <code class="bg-slate-900 px-1 py-0.5 rounded text-indigo-300">index.html</code> file to the root directory.</li>
+                    <li>In GitHub, go to <strong>Settings -> Pages</strong>.</li>
+                    <li>Under <strong>Source</strong>, select <code class="bg-slate-900 px-1 py-0.5 rounded text-slate-200">Deploy from a branch</code>, choose <code class="bg-slate-900 px-1 py-0.5 rounded text-slate-200">main</code> branch and folder <code class="bg-slate-900 px-1 py-0.5 rounded text-slate-200">/ (root)</code>.</li>
+                    <li>Click <strong>Save</strong>. Your portal will be available at <code class="bg-slate-900 px-1 py-0.5 rounded text-emerald-400">https://yourusername.github.io/repository-name/</code>.</li>
+                </ol>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Default Worker API endpoint (Can be updated via Admin Panel or replaced inline)
+        let WORKER_ENDPOINT = localStorage.getItem('WORKER_ENDPOINT') || 'https://zoho-workdrive-proxy.YOUR_SUBDOMAIN.workers.dev';
+
+        // State management
+        let currentStep = 1;
+        let recordingMode = 'video'; // 'video' or 'audio'
+        let mediaStream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordedBlob = null;
+        let recordingTimer = null;
+        let recordingSeconds = 0;
+
+        // Audio Visualizer State
+        let audioCtx = null;
+        let analyser = null;
+        let animFrameId = null;
+
+        // On DOM Load
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('admin-worker-url-input').value = WORKER_ENDPOINT;
+            checkWorkerConfig();
+            setupDeviceLists();
+        });
+
+        function checkWorkerConfig() {
+            const banner = document.getElementById('config-banner');
+            if (WORKER_ENDPOINT.includes('YOUR_SUBDOMAIN')) {
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
+        function saveWorkerConfig() {
+            const val = document.getElementById('admin-worker-url-input').value.trim();
+            if (val) {
+                WORKER_ENDPOINT = val;
+                localStorage.setItem('WORKER_ENDPOINT', val);
+                checkWorkerConfig();
+                alert('Worker URL Saved successfully!');
+            }
+        }
+
+        function switchView(view) {
+            const portal = document.getElementById('portal-view');
+            const admin = document.getElementById('admin-view');
+            const btnPortal = document.getElementById('btn-portal-view');
+            const btnAdmin = document.getElementById('btn-admin-view');
+
+            if (view === 'portal') {
+                portal.classList.remove('hidden');
+                admin.classList.add('hidden');
+                btnPortal.className = "px-4 py-2 rounded-lg text-sm font-medium transition bg-indigo-600 text-white shadow-md shadow-indigo-600/30";
+                btnAdmin.className = "px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 transition";
+            } else {
+                portal.classList.add('hidden');
+                admin.classList.remove('hidden');
+                btnAdmin.className = "px-4 py-2 rounded-lg text-sm font-medium transition bg-indigo-600 text-white shadow-md shadow-indigo-600/30";
+                btnPortal.className = "px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 transition";
+            }
+        }
+
+        function switchAdminTab(tabId) {
+            document.querySelectorAll('.admin-tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+
+            const tabs = ['zoho', 'cf', 'gh'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-btn-${t}`);
+                if (`tab-${t}` === tabId) {
+                    btn.className = "px-4 py-2 border-b-2 border-indigo-500 font-semibold text-sm text-indigo-400 whitespace-nowrap";
+                } else {
+                    btn.className = "px-4 py-2 border-b-2 border-transparent font-medium text-sm text-slate-400 hover:text-slate-200 whitespace-nowrap";
+                }
+            });
+        }
+
+        // Stepper Navigation
+        function goToStep(step) {
+            if (step === 2) {
+                const name = document.getElementById('participant-name').value.trim();
+                if (!name) {
+                    alert('Please enter your name before proceeding.');
+                    return;
+                }
+                initMediaStream();
+            }
+
+            currentStep = step;
+            document.querySelectorAll('.step-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`step-${step}`).classList.remove('hidden');
+
+            // Update Progress Line & Badges
+            const progressPct = ((step - 1) / 3) * 100;
+            document.getElementById('step-line-progress').style.width = `${progressPct}%`;
+
+            for (let i = 1; i <= 4; i++) {
+                const circle = document.getElementById(`step-circle-${i}`);
+                if (i <= step) {
+                    circle.className = "w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center ring-4 ring-slate-900 shadow-lg";
+                } else {
+                    circle.className = "w-10 h-10 rounded-full bg-slate-800 text-slate-400 font-bold flex items-center justify-center ring-4 ring-slate-900";
+                }
+            }
+        }
+
+        function setRecordingMode(mode) {
+            recordingMode = mode;
+            const videoBtn = document.getElementById('mode-video-btn');
+            const audioBtn = document.getElementById('mode-audio-btn');
+            const camWrapper = document.getElementById('cam-select-wrapper');
+            const placeholder = document.getElementById('audio-only-placeholder');
+
+            if (mode === 'video') {
+                videoBtn.className = "flex-1 py-3 px-4 rounded-xl border border-indigo-500 bg-indigo-500/10 text-indigo-300 font-medium text-sm flex items-center justify-center gap-2";
+                audioBtn.className = "flex-1 py-3 px-4 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-400 font-medium text-sm flex items-center justify-center gap-2";
+                camWrapper.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            } else {
+                audioBtn.className = "flex-1 py-3 px-4 rounded-xl border border-indigo-500 bg-indigo-500/10 text-indigo-300 font-medium text-sm flex items-center justify-center gap-2";
+                videoBtn.className = "flex-1 py-3 px-4 rounded-xl border border-slate-700 bg-slate-900/60 text-slate-400 font-medium text-sm flex items-center justify-center gap-2";
+                camWrapper.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+            }
+            initMediaStream();
+        }
+
+        // Setup Media Inputs
+        async function setupDeviceLists() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoSelect = document.getElementById('select-video');
+                const audioSelect = document.getElementById('select-audio');
+
+                videoSelect.innerHTML = '';
+                audioSelect.innerHTML = '';
+
+                devices.forEach(dev => {
+                    const opt = document.createElement('option');
+                    opt.value = dev.deviceId;
+                    if (dev.kind === 'videoinput') {
+                        opt.text = dev.label || `Camera ${videoSelect.length + 1}`;
+                        videoSelect.appendChild(opt);
+                    } else if (dev.kind === 'audioinput') {
+                        opt.text = dev.label || `Microphone ${audioSelect.length + 1}`;
+                        audioSelect.appendChild(opt);
+                    }
+                });
+            } catch (err) {
+                console.warn('Device enumeration restriction:', err);
+            }
+        }
+
+        async function initMediaStream() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+
+            const videoId = document.getElementById('select-video').value;
+            const audioId = document.getElementById('select-audio').value;
+
+            const constraints = {
+                audio: audioId ? { deviceId: { exact: audioId } } : true,
+                video: recordingMode === 'video' ? (videoId ? { deviceId: { exact: videoId } } : true) : false
+            };
+
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                if (recordingMode === 'video') {
+                    const setupVideo = document.getElementById('preview-setup-video');
+                    setupVideo.srcObject = mediaStream;
+                    setupVideo.classList.remove('hidden');
+                } else {
+                    document.getElementById('preview-setup-video').classList.add('hidden');
+                }
+
+                startAudioVisualizer(mediaStream, 'visualizer-setup');
+            } catch (err) {
+                alert('Could not access microphone/camera: ' + err.message);
+            }
+        }
+
+        // Web Audio Visualizer
+        function startAudioVisualizer(stream, canvasId) {
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            analyser = audioCtx.createAnalyser();
+            const source = audioCtx.createMediaStreamSource(stream);
+            source.connect(analyser);
+            analyser.fftSize = 64;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+
+            function draw() {
+                animFrameId = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let x = 0;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = (dataArray[i] / 255) * canvas.height;
+                    
+                    ctx.fillStyle = `rgb(99, 102, 241)`; // Tailwind Indigo-500
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+
+                    x += barWidth + 2;
+                }
+            }
+
+            draw();
+        }
+
+        function startRecorderStep() {
+            goToStep(3);
+            const liveVideo = document.getElementById('live-recording-video');
+            const audioScreen = document.getElementById('recording-audio-screen');
+
+            if (recordingMode === 'video') {
+                liveVideo.srcObject = mediaStream;
+                liveVideo.classList.remove('hidden');
+                audioScreen.classList.add('hidden');
+            } else {
+                liveVideo.classList.add('hidden');
+                audioScreen.classList.remove('hidden');
+                startAudioVisualizer(mediaStream, 'visualizer-recording');
+            }
+        }
+
+        // Recording Engine
+        function startRecording() {
+            recordedChunks = [];
+            
+            let options = { mimeType: 'video/webm;codecs=vp9,opus' };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: 'video/webm' };
+            }
+            if (recordingMode === 'audio') {
+                options = { mimeType: 'audio/webm' };
+            }
+
+            try {
+                mediaRecorder = new MediaRecorder(mediaStream, options);
+            } catch (e) {
+                mediaRecorder = new MediaRecorder(mediaStream);
+            }
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                recordedBlob = new Blob(recordedChunks, {
+                    type: recordingMode === 'video' ? 'video/webm' : 'audio/webm'
+                });
+                
+                // Show playback
+                const playback = document.getElementById('playback-video');
+                const liveVideo = document.getElementById('live-recording-video');
+                
+                playback.src = URL.createObjectURL(recordedBlob);
+                playback.classList.remove('hidden');
+                liveVideo.classList.add('hidden');
+                
+                document.getElementById('btn-submit-next').disabled = false;
+                document.getElementById('btn-submit-next').classList.remove('opacity-50', 'cursor-not-allowed');
+            };
+
+            mediaRecorder.start();
+
+            // UI state
+            document.getElementById('btn-start-rec').classList.add('hidden');
+            document.getElementById('btn-stop-rec').classList.remove('hidden');
+            document.getElementById('recording-dot').classList.add('bg-red-500', 'recording-pulse');
+
+            // Timer
+            recordingSeconds = 0;
+            recordingTimer = setInterval(() => {
+                recordingSeconds++;
+                const mins = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+                const secs = String(recordingSeconds % 60).padStart(2, '0');
+                document.getElementById('timer-display').innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+
+            clearInterval(recordingTimer);
+            document.getElementById('btn-stop-rec').classList.add('hidden');
+            document.getElementById('btn-rerecord').classList.remove('hidden');
+            document.getElementById('recording-dot').classList.remove('bg-red-500', 'recording-pulse');
+        }
+
+        function resetRecording() {
+            recordedBlob = null;
+            document.getElementById('playback-video').classList.add('hidden');
+            document.getElementById('btn-rerecord').classList.add('hidden');
+            document.getElementById('btn-start-rec').classList.remove('hidden');
+            document.getElementById('btn-submit-next').disabled = true;
+            document.getElementById('btn-submit-next').classList.add('opacity-50', 'cursor-not-allowed');
+            document.getElementById('timer-display').innerText = '00:00';
+            
+            if (recordingMode === 'video') {
+                document.getElementById('live-recording-video').classList.remove('hidden');
+            }
+        }
+
+        function prepareUploadStep() {
+            goToStep(4);
+        }
+
+        async function uploadToZoho() {
+            if (!recordedBlob) {
+                alert('No recording found!');
+                return;
+            }
+
+            const name = document.getElementById('participant-name').value.trim() || 'Anonymous';
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const ext = recordingMode === 'video' ? 'webm' : 'webm';
+            const filename = `${name}_${timestamp}.${ext}`;
+
+            const formData = new FormData();
+            formData.append('file', recordedBlob, filename);
+            formData.append('filename', filename);
+
+            const uploadBtn = document.getElementById('btn-trigger-upload');
+            const progressContainer = document.getElementById('upload-progress-container');
+            const progressBar = document.getElementById('upload-progress-bar');
+            const statusText = document.getElementById('upload-status-text');
+
+            uploadBtn.disabled = true;
+            uploadBtn.classList.add('opacity-50');
+            progressContainer.classList.remove('hidden');
+
+            try {
+                // Perform upload with simulated progress
+                let pct = 10;
+                progressBar.style.width = `${pct}%`;
+
+                const interval = setInterval(() => {
+                    if (pct < 85) {
+                        pct += 15;
+                        progressBar.style.width = `${pct}%`;
+                        statusText.innerText = `Uploading to Zoho WorkDrive... ${pct}%`;
+                    }
+                }, 300);
+
+                const response = await fetch(WORKER_ENDPOINT, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                clearInterval(interval);
+
+                if (response.ok) {
+                    progressBar.style.width = '100%';
+                    statusText.innerText = 'Upload Successful!';
+                    setTimeout(() => {
+                        document.getElementById('upload-state-initial').classList.add('hidden');
+                        document.getElementById('upload-state-success').classList.remove('hidden');
+                    }, 500);
+                } else {
+                    const err = await response.json();
+                    alert('Upload failed: ' + (err.error || 'Server error'));
+                    uploadBtn.disabled = false;
+                    uploadBtn.classList.remove('opacity-50');
+                }
+            } catch (err) {
+                alert('Connection error: ' + err.message);
+                uploadBtn.disabled = false;
+                uploadBtn.classList.remove('opacity-50');
+            }
+        }
+
+        function copyCode(elementId) {
+            const text = document.getElementById(elementId).innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            });
+        }
+    </script>
+</body>
+</html>
